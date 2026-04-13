@@ -16,7 +16,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-app.use('/api/auth', authRoutes);
+app.use('/api/patients/auth', authRoutes);
 app.use('/api/patients', patientRoutes);
 
 app.get('/health', (req, res) => res.json({ status: 'ok', service: 'patient-service' }));

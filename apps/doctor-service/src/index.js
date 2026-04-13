@@ -13,7 +13,7 @@ connectDB();
 app.use(cors());
 app.use(express.json());
 
-app.use('/api/auth', authRoutes);
+app.use('/api/doctors/auth', authRoutes);
 app.use('/api/doctors', doctorRoutes);
 
 app.get('/health', (req, res) => res.json({ status: 'ok', service: 'doctor-service' }));
