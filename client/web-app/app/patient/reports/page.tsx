@@ -18,7 +18,7 @@ interface Report {
 
 export default function ReportsPage() {
   const router = useRouter();
-  const user = auth.getUser();
+  const [user] = useState(() => auth.getUser());
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -31,7 +31,8 @@ export default function ReportsPage() {
       .then(data => setReports(data || []))
       .catch(() => setReports([]))
       .finally(() => setLoading(false));
-  }, [user, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();

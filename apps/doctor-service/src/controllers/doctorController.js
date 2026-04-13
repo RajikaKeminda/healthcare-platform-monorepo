@@ -94,7 +94,7 @@ const getDoctorById = async (req, res) => {
 const searchDoctors = async (req, res) => {
   try {
     const { specialty, name, page = 1, limit = 20 } = req.query;
-    const query = { isActive: true, isVerified: true };
+    const query = { isActive: true };
     if (specialty) query.specialization = new RegExp(specialty, 'i');
     if (name) query.name = new RegExp(name, 'i');
     const doctors = await Doctor.find(query)

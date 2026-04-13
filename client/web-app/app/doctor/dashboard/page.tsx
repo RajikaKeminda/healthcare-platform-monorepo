@@ -19,13 +19,16 @@ interface Appointment {
 
 export default function DoctorDashboard() {
   const router = useRouter();
-  const user = auth.getUser();
+  const [user] = useState(() => auth.getUser());
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'today' | 'upcoming' | 'past'>('today');
 
   useEffect(() => {
-    if (!user || user.role !== 'doctor') { router.push('/login?role=doctor'); return; }
+    if (!user || user.role !== 'doctor') {
+      router.push('/login?role=doctor');
+      return;
+    }
     const fetchAppointments = async () => {
       try {
         const data = await api.get('/api/appointments/doctor/my');
@@ -34,7 +37,8 @@ export default function DoctorDashboard() {
       finally { setLoading(false); }
     };
     fetchAppointments();
-  }, [user, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const today = new Date().toDateString();
   const todayApts = appointments.filter(a => new Date(a.appointmentDate).toDateString() === today && ['pending', 'confirmed'].includes(a.status));

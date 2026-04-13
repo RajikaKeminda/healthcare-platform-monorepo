@@ -25,7 +25,7 @@ interface Prescription {
 
 export default function PrescriptionsPage() {
   const router = useRouter();
-  const user = auth.getUser();
+  const [user] = useState(() => auth.getUser());
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -35,7 +35,8 @@ export default function PrescriptionsPage() {
       .then(data => setPrescriptions(data || []))
       .catch(() => setPrescriptions([]))
       .finally(() => setLoading(false));
-  }, [user, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">

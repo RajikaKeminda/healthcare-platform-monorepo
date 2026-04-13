@@ -24,7 +24,7 @@ const doctorSchema = new mongoose.Schema({
   availability: [availabilitySlotSchema],
   rating: { type: Number, default: 0 },
   totalReviews: { type: Number, default: 0 },
-  isVerified: { type: Boolean, default: false },
+  isVerified: { type: Boolean, default: true },
   isActive: { type: Boolean, default: true },
   role: { type: String, default: 'doctor' },
 }, { timestamps: true });
