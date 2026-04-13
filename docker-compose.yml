@@ -1,0 +1,211 @@
+version: '3.8'
+
+services:
+  # ─── Infrastructure ───────────────────────────────────────────
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - healthcare-network
+
+  # ─── Microservices ────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: ./apps/api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      - PORT=3000
+      - JWT_SECRET=healthcare_jwt_secret_2026
+      - PATIENT_SERVICE_URL=http://patient-service:3001
+      - DOCTOR_SERVICE_URL=http://doctor-service:3002
+      - APPOINTMENT_SERVICE_URL=http://appointment-service:3003
+      - TELEMEDICINE_SERVICE_URL=http://telemedicine-service:3004
+      - PAYMENT_SERVICE_URL=http://payment-service:3005
+      - NOTIFICATION_SERVICE_URL=http://notification-service:3006
+      - AI_SYMPTOM_SERVICE_URL=http://ai-symptom-checker:3007
+    depends_on:
+      - patient-service
+      - doctor-service
+      - appointment-service
+      - telemedicine-service
+      - payment-service
+      - notification-service
+      - ai-symptom-checker
+    networks:
+      - healthcare-network
+
+  patient-service:
+    build:
+      context: ./apps/patient-service
+      dockerfile: Dockerfile
+    container_name: patient-service
+    restart: unless-stopped
+    ports:
+      - '3001:3001'
+    environment:
+      - PORT=3001
+      - MONGODB_URI=mongodb://mongodb:27017/patient_db
+      - JWT_SECRET=healthcare_jwt_secret_2026
+      - NOTIFICATION_SERVICE_URL=http://notification-service:3006
+    depends_on:
+      - mongodb
+    volumes:
+      - patient_uploads:/app/uploads
+    networks:
+      - healthcare-network
+
+  doctor-service:
+    build:
+      context: ./apps/doctor-service
+      dockerfile: Dockerfile
+    container_name: doctor-service
+    restart: unless-stopped
+    ports:
+      - '3002:3002'
+    environment:
+      - PORT=3002
+      - MONGODB_URI=mongodb://mongodb:27017/doctor_db
+      - JWT_SECRET=healthcare_jwt_secret_2026
+      - PATIENT_SERVICE_URL=http://patient-service:3001
+      - NOTIFICATION_SERVICE_URL=http://notification-service:3006
+    depends_on:
+      - mongodb
+    networks:
+      - healthcare-network
+
+  appointment-service:
+    build:
+      context: ./apps/appointment-service
+      dockerfile: Dockerfile
+    container_name: appointment-service
+    restart: unless-stopped
+    ports:
+      - '3003:3003'
+    environment:
+      - PORT=3003
+      - MONGODB_URI=mongodb://mongodb:27017/appointment_db
+      - JWT_SECRET=healthcare_jwt_secret_2026
+      - DOCTOR_SERVICE_URL=http://doctor-service:3002
+      - PATIENT_SERVICE_URL=http://patient-service:3001
+      - NOTIFICATION_SERVICE_URL=http://notification-service:3006
+    depends_on:
+      - mongodb
+    networks:
+      - healthcare-network
+
+  telemedicine-service:
+    build:
+      context: ./apps/telemedicine-service
+      dockerfile: Dockerfile
+    container_name: telemedicine-service
+    restart: unless-stopped
+    ports:
+      - '3004:3004'
+    environment:
+      - PORT=3004
+      - MONGODB_URI=mongodb://mongodb:27017/telemedicine_db
+      - JWT_SECRET=healthcare_jwt_secret_2026
+      - AGORA_APP_ID=${AGORA_APP_ID:-your_agora_app_id}
+      - AGORA_APP_CERTIFICATE=${AGORA_APP_CERTIFICATE:-your_agora_certificate}
+      - APPOINTMENT_SERVICE_URL=http://appointment-service:3003
+    depends_on:
+      - mongodb
+    networks:
+      - healthcare-network
+
+  payment-service:
+    build:
+      context: ./apps/payment-service
+      dockerfile: Dockerfile
+    container_name: payment-service
+    restart: unless-stopped
+    ports:
+      - '3005:3005'
+    environment:
+      - PORT=3005
+      - MONGODB_URI=mongodb://mongodb:27017/payment_db
+      - JWT_SECRET=healthcare_jwt_secret_2026
+      - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID:-your_paypal_sandbox_client_id}
+      - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET:-your_paypal_sandbox_client_secret}
+      - PAYPAL_MODE=sandbox
+      - APPOINTMENT_SERVICE_URL=http://appointment-service:3003
+      - FRONTEND_URL=http://localhost:3100
+    depends_on:
+      - mongodb
+    networks:
+      - healthcare-network
+
+  notification-service:
+    build:
+      context: ./apps/notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    restart: unless-stopped
+    ports:
+      - '3006:3006'
+    environment:
+      - PORT=3006
+      - MONGODB_URI=mongodb://mongodb:27017/notification_db
+      - EMAIL_HOST=${EMAIL_HOST:-smtp.gmail.com}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_USER=${EMAIL_USER:-}
+      - EMAIL_PASS=${EMAIL_PASS:-}
+      - EMAIL_FROM=${EMAIL_FROM:-Healthcare Platform <noreply@healthcare.com>}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER:-}
+    depends_on:
+      - mongodb
+    networks:
+      - healthcare-network
+
+  ai-symptom-checker:
+    build:
+      context: ./apps/ai-symptom-checker
+      dockerfile: Dockerfile
+    container_name: ai-symptom-checker
+    restart: unless-stopped
+    ports:
+      - '3007:3007'
+    environment:
+      - PORT=3007
+      - MONGODB_URI=mongodb://mongodb:27017/symptom_db
+      - JWT_SECRET=healthcare_jwt_secret_2026
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    depends_on:
+      - mongodb
+    networks:
+      - healthcare-network
+
+  # ─── Frontend ─────────────────────────────────────────────────
+  web-app:
+    build:
+      context: ./client/web-app
+      dockerfile: Dockerfile
+    container_name: web-app
+    restart: unless-stopped
+    ports:
+      - '3100:3000'
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+    depends_on:
+      - api-gateway
+    networks:
+      - healthcare-network
+
+volumes:
+  mongo_data:
+  patient_uploads:
+
+networks:
+  healthcare-network:
+    driver: bridge

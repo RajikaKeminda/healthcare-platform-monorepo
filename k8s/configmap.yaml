@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: healthcare-config
+  namespace: healthcare
+data:
+  JWT_SECRET: "healthcare_jwt_secret_2026"
+  MONGODB_URI_PATIENT: "mongodb://mongodb-service:27017/patient_db"
+  MONGODB_URI_DOCTOR: "mongodb://mongodb-service:27017/doctor_db"
+  MONGODB_URI_APPOINTMENT: "mongodb://mongodb-service:27017/appointment_db"
+  MONGODB_URI_TELEMEDICINE: "mongodb://mongodb-service:27017/telemedicine_db"
+  MONGODB_URI_PAYMENT: "mongodb://mongodb-service:27017/payment_db"
+  MONGODB_URI_NOTIFICATION: "mongodb://mongodb-service:27017/notification_db"
+  MONGODB_URI_SYMPTOM: "mongodb://mongodb-service:27017/symptom_db"
+  PATIENT_SERVICE_URL: "http://patient-service:3001"
+  DOCTOR_SERVICE_URL: "http://doctor-service:3002"
+  APPOINTMENT_SERVICE_URL: "http://appointment-service:3003"
+  TELEMEDICINE_SERVICE_URL: "http://telemedicine-service:3004"
+  PAYMENT_SERVICE_URL: "http://payment-service:3005"
+  NOTIFICATION_SERVICE_URL: "http://notification-service:3006"
+  AI_SYMPTOM_SERVICE_URL: "http://ai-symptom-checker:3007"
+  PAYPAL_MODE: "sandbox"
+  FRONTEND_URL: "http://web-app-service:3100"
