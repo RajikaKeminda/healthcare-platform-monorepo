@@ -8,35 +8,49 @@ declare global {
   interface Window {
     AgoraRTC: {
       createClient: (config: { mode: string; codec: string }) => AgoraClient;
+      createMicrophoneAndCameraTracks: () => Promise<[AgoraLocalTrack, AgoraLocalTrack]>;
     };
   }
 }
 
 interface AgoraClient {
   join: (appId: string, channel: string, token: string | null, uid: number) => Promise<number>;
-  publish: (tracks: AgoraTrack[]) => Promise<void>;
-  subscribe: (user: { uid: number }, mediaType: string) => Promise<void>;
+  publish: (tracks: AgoraLocalTrack[]) => Promise<void>;
+  subscribe: (user: AgoraRemoteUser, mediaType: 'video' | 'audio') => Promise<void>;
   leave: () => Promise<void>;
   on: (event: string, callback: (...args: unknown[]) => void) => void;
 }
 
-interface AgoraTrack {
+interface AgoraLocalTrack {
   play: (element: string | HTMLElement) => void;
   close: () => void;
+  setEnabled: (enabled: boolean) => Promise<void>;
+}
+
+interface AgoraRemoteUser {
+  uid: number;
+  videoTrack?: AgoraLocalTrack;
+  audioTrack?: AgoraLocalTrack;
 }
 
 export default function VideoSessionPage() {
   const { id } = useParams();
   const router = useRouter();
-  const user = auth.getUser();
-  const [sessionData, setSessionData] = useState<{ token: string; appId: string; channelName: string; uid: number } | null>(null);
+  const userRef = useRef(auth.getUser());
+  const user = userRef.current;
+
+  const [sessionData, setSessionData] = useState<{
+    token: string; appId: string; channelName: string; uid: number;
+  } | null>(null);
   const [joined, setJoined] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
+
   const clientRef = useRef<AgoraClient | null>(null);
-  const localTracksRef = useRef<AgoraTrack[]>([]);
+  const micTrackRef = useRef<AgoraLocalTrack | null>(null);
+  const camTrackRef = useRef<AgoraLocalTrack | null>(null);
 
   useEffect(() => {
     if (!user) { router.push('/login'); return; }
@@ -51,42 +65,83 @@ export default function VideoSessionPage() {
       }
     };
     fetchSession();
-  }, [id, user, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const joinCall = async () => {
-    if (!sessionData || !window.AgoraRTC) {
-      setError('Agora SDK not loaded. Please check your App ID configuration.');
+    if (!sessionData) {
+      setError('Session data not loaded yet. Please wait.');
       return;
     }
+    if (!window.AgoraRTC) {
+      setError('Agora SDK not loaded. Please refresh the page.');
+      return;
+    }
+
     try {
+      // Request camera + microphone — this triggers the browser permission prompt
+      const [micTrack, camTrack] = await window.AgoraRTC.createMicrophoneAndCameraTracks();
+      micTrackRef.current = micTrack;
+      camTrackRef.current = camTrack;
+
+      // Play local camera preview immediately
+      camTrack.play('local-video');
+
+      // Join the channel
       const client = window.AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
       clientRef.current = client;
 
       client.on('user-published', async (...args: unknown[]) => {
-        const remoteUser = args[0];
-        const mediaType = args[1] as string;
-        const u = remoteUser as { uid: number };
-        await client.subscribe(u, mediaType);
-        if (mediaType === 'video') {
-          const remoteTrack = (u as unknown as { videoTrack: AgoraTrack }).videoTrack;
-          remoteTrack?.play('remote-video');
-        }
-        if (mediaType === 'audio') {
-          const remoteTrack = (u as unknown as { audioTrack: AgoraTrack }).audioTrack;
-          remoteTrack?.play('remote-audio');
-        }
+        const remoteUser = args[0] as AgoraRemoteUser;
+        const mediaType = args[1] as 'video' | 'audio';
+        await client.subscribe(remoteUser, mediaType);
+        if (mediaType === 'video') remoteUser.videoTrack?.play('remote-video');
+        if (mediaType === 'audio') remoteUser.audioTrack?.play('remote-audio');
       });
 
-      await client.join(sessionData.appId, sessionData.channelName, sessionData.token || null, sessionData.uid);
+      await client.join(
+        sessionData.appId,
+        sessionData.channelName,
+        sessionData.token || null,
+        sessionData.uid,
+      );
+
+      // Publish local tracks so the remote participant can see/hear us
+      await client.publish([micTrack, camTrack]);
+
       setJoined(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to join call');
+      const message = err instanceof Error ? err.message : 'Failed to join call';
+      // Provide a helpful message for permission denials
+      if (message.toLowerCase().includes('permission') || message.toLowerCase().includes('notallowed')) {
+        setError('Camera/microphone access was denied. Please allow access in your browser settings and try again.');
+      } else {
+        setError(message);
+      }
     }
   };
 
+  const toggleMic = async () => {
+    if (!micTrackRef.current) return;
+    const next = !micOn;
+    await micTrackRef.current.setEnabled(next);
+    setMicOn(next);
+  };
+
+  const toggleCam = async () => {
+    if (!camTrackRef.current) return;
+    const next = !camOn;
+    await camTrackRef.current.setEnabled(next);
+    setCamOn(next);
+  };
+
   const leaveCall = async () => {
-    localTracksRef.current.forEach(track => track.close());
+    micTrackRef.current?.close();
+    camTrackRef.current?.close();
+    micTrackRef.current = null;
+    camTrackRef.current = null;
     await clientRef.current?.leave();
+    clientRef.current = null;
     setJoined(false);
     try { await api.put(`/api/sessions/${id}/end`, {}); } catch { /* ignore */ }
     router.push(user?.role === 'doctor' ? '/doctor/dashboard' : '/patient/dashboard');
@@ -104,62 +159,90 @@ export default function VideoSessionPage() {
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
       <div className="bg-gray-800 px-6 py-4 flex justify-between items-center">
-        <h1 className="text-white font-bold">🎥 Telemedicine Session</h1>
+        <h1 className="text-white font-bold">Telemedicine Session</h1>
         {sessionData && <p className="text-gray-400 text-sm">Channel: {sessionData.channelName}</p>}
       </div>
 
       <div className="flex-1 flex items-center justify-center p-6">
         {error ? (
-          <div className="text-center text-white">
+          <div className="text-center text-white max-w-md">
             <div className="text-5xl mb-4">⚠️</div>
-            <p className="text-red-400 mb-4">{error}</p>
-            <button onClick={() => router.back()} className="bg-gray-700 text-white px-6 py-3 rounded-lg">Go Back</button>
+            <p className="text-red-400 mb-6">{error}</p>
+            <div className="flex gap-3 justify-center">
+              <button onClick={() => setError('')} className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors">
+                Try Again
+              </button>
+              <button onClick={() => router.back()} className="bg-gray-700 text-white px-6 py-3 rounded-lg hover:bg-gray-600 transition-colors">
+                Go Back
+              </button>
+            </div>
           </div>
         ) : !joined ? (
           <div className="text-center text-white max-w-md">
             <div className="text-6xl mb-6">📹</div>
             <h2 className="text-2xl font-bold mb-2">Ready to Join?</h2>
-            <p className="text-gray-400 mb-6">Your session is ready. Click below to join the video call.</p>
+            <p className="text-gray-400 mb-2">
+              Your browser will ask for <strong>camera and microphone</strong> access when you click below.
+            </p>
+            <p className="text-gray-500 text-sm mb-6">Make sure to allow access to participate in the video call.</p>
             <div className="bg-gray-800 rounded-xl p-4 mb-6 text-left text-sm text-gray-300 space-y-2">
               <p>📡 Channel: {sessionData?.channelName}</p>
               <p>🆔 App ID: {sessionData?.appId}</p>
-              <p className="text-yellow-400">⚠️ Make sure your Agora App ID is configured in the telemedicine service.</p>
             </div>
-            <button onClick={joinCall}
-              className="bg-green-500 text-white px-8 py-4 rounded-xl font-semibold hover:bg-green-600 transition-colors text-lg">
+            <button
+              onClick={joinCall}
+              className="bg-green-500 text-white px-8 py-4 rounded-xl font-semibold hover:bg-green-600 transition-colors text-lg w-full"
+            >
               📹 Join Video Call
             </button>
           </div>
         ) : (
           <div className="w-full max-w-4xl">
             <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-gray-800 rounded-xl aspect-video flex items-center justify-center relative">
-                <div id="local-video" className="w-full h-full rounded-xl" />
-                <div className="absolute bottom-3 left-3 bg-black/50 text-white text-xs px-2 py-1 rounded">
+              {/* Local video */}
+              <div className="bg-gray-800 rounded-xl aspect-video flex items-center justify-center relative overflow-hidden">
+                <div id="local-video" className="w-full h-full" />
+                {!camOn && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+                    <span className="text-4xl">🚫</span>
+                  </div>
+                )}
+                <div className="absolute bottom-3 left-3 bg-black/60 text-white text-xs px-2 py-1 rounded">
                   You ({user?.name})
                 </div>
               </div>
-              <div className="bg-gray-800 rounded-xl aspect-video flex items-center justify-center relative">
-                <div id="remote-video" className="w-full h-full rounded-xl" />
+
+              {/* Remote video */}
+              <div className="bg-gray-800 rounded-xl aspect-video flex items-center justify-center relative overflow-hidden">
+                <div id="remote-video" className="w-full h-full" />
                 <div id="remote-audio" className="hidden" />
-                <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">
+                <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm pointer-events-none">
                   Waiting for other participant...
                 </div>
-                <div className="absolute bottom-3 left-3 bg-black/50 text-white text-xs px-2 py-1 rounded">Remote</div>
+                <div className="absolute bottom-3 left-3 bg-black/60 text-white text-xs px-2 py-1 rounded">Remote</div>
               </div>
             </div>
 
+            {/* Controls */}
             <div className="flex justify-center gap-4">
-              <button onClick={() => setMicOn(m => !m)}
-                className={`w-14 h-14 rounded-full font-semibold transition-colors ${micOn ? 'bg-gray-700 text-white' : 'bg-red-500 text-white'}`}>
+              <button
+                onClick={toggleMic}
+                title={micOn ? 'Mute microphone' : 'Unmute microphone'}
+                className={`w-14 h-14 rounded-full text-xl font-semibold transition-colors ${micOn ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-red-500 text-white hover:bg-red-600'}`}
+              >
                 {micOn ? '🎤' : '🔇'}
               </button>
-              <button onClick={() => setCamOn(c => !c)}
-                className={`w-14 h-14 rounded-full font-semibold transition-colors ${camOn ? 'bg-gray-700 text-white' : 'bg-red-500 text-white'}`}>
+              <button
+                onClick={toggleCam}
+                title={camOn ? 'Turn off camera' : 'Turn on camera'}
+                className={`w-14 h-14 rounded-full text-xl font-semibold transition-colors ${camOn ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-red-500 text-white hover:bg-red-600'}`}
+              >
                 {camOn ? '📷' : '🚫'}
               </button>
-              <button onClick={leaveCall}
-                className="bg-red-500 text-white px-8 h-14 rounded-full font-semibold hover:bg-red-600 transition-colors">
+              <button
+                onClick={leaveCall}
+                className="bg-red-500 text-white px-8 h-14 rounded-full font-semibold hover:bg-red-600 transition-colors"
+              >
                 End Call
               </button>
             </div>
@@ -167,8 +250,6 @@ export default function VideoSessionPage() {
         )}
       </div>
 
-      {/* Load Agora SDK */}
-      {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.21.0.js" async />
     </div>
   );

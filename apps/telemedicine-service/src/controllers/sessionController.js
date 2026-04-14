@@ -31,26 +31,28 @@ const getOrCreateSession = async (req, res) => {
 
     if (!session) {
       const channelName = `healthcare_${appointmentId}`;
+      const isDoctor = req.user.role === 'doctor';
       session = await Session.create({
         appointmentId,
         channelName,
-        patientId: req.body.patientId || req.user.id,
-        doctorId: req.body.doctorId || '',
+        patientId: isDoctor ? (req.body.patientId || '') : req.user.id,
+        doctorId: isDoctor ? req.user.id : (req.body.doctorId || ''),
         status: 'waiting',
       });
     }
 
     const uid = Math.floor(Math.random() * 100000);
-    const role = req.user.role === 'doctor' ? RtcRole.PUBLISHER : RtcRole.PUBLISHER;
-    const token = generateAgoraToken(session.channelName, uid, role);
+    const token = generateAgoraToken(session.channelName, uid, RtcRole.PUBLISHER);
 
-    // Update join time
-    if (req.user.role === 'doctor' && !session.doctorJoinedAt) {
-      session.doctorJoinedAt = new Date();
+    // Update join time and fill in missing IDs
+    if (req.user.role === 'doctor') {
+      if (!session.doctorId) session.doctorId = req.user.id;
+      if (!session.doctorJoinedAt) session.doctorJoinedAt = new Date();
       if (!session.startedAt) session.startedAt = new Date();
       session.status = 'active';
-    } else if (req.user.role === 'patient' && !session.patientJoinedAt) {
-      session.patientJoinedAt = new Date();
+    } else {
+      if (!session.patientId) session.patientId = req.user.id;
+      if (!session.patientJoinedAt) session.patientJoinedAt = new Date();
     }
     await session.save();
 
