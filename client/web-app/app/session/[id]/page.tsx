@@ -199,27 +199,27 @@ export default function VideoSessionPage() {
         ) : (
           <div className="w-full max-w-4xl">
             <div className="grid grid-cols-2 gap-4 mb-6">
-              {/* Local video */}
-              <div className="bg-gray-800 rounded-xl aspect-video flex items-center justify-center relative overflow-hidden">
-                <div id="local-video" className="w-full h-full" />
+              {/* Local video — absolute inset-0 guarantees Agora's injected <video> has a sized container */}
+              <div className="bg-gray-800 rounded-xl aspect-video relative overflow-hidden">
+                <div id="local-video" className="absolute inset-0" />
                 {!camOn && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-800 z-10">
                     <span className="text-4xl">🚫</span>
                   </div>
                 )}
-                <div className="absolute bottom-3 left-3 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                <div className="absolute bottom-3 left-3 bg-black/60 text-white text-xs px-2 py-1 rounded z-10">
                   You ({user?.name})
                 </div>
               </div>
 
               {/* Remote video */}
-              <div className="bg-gray-800 rounded-xl aspect-video flex items-center justify-center relative overflow-hidden">
-                <div id="remote-video" className="w-full h-full" />
+              <div className="bg-gray-800 rounded-xl aspect-video relative overflow-hidden">
+                <div id="remote-video" className="absolute inset-0" />
                 <div id="remote-audio" className="hidden" />
-                <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm pointer-events-none">
+                <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm pointer-events-none z-0">
                   Waiting for other participant...
                 </div>
-                <div className="absolute bottom-3 left-3 bg-black/60 text-white text-xs px-2 py-1 rounded">Remote</div>
+                <div className="absolute bottom-3 left-3 bg-black/60 text-white text-xs px-2 py-1 rounded z-10">Remote</div>
               </div>
             </div>
 

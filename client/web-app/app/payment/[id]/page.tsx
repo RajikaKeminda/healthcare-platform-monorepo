@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import { api } from '@/lib/api';
@@ -20,7 +20,8 @@ interface Appointment {
 export default function PaymentPage() {
   const { id } = useParams();
   const router = useRouter();
-  const user = auth.getUser();
+  const userRef = useRef(auth.getUser());
+  const user = userRef.current;
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -39,7 +40,8 @@ export default function PaymentPage() {
       }
     };
     fetchAppointment();
-  }, [id, user, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const handlePayPal = async () => {
     if (!appointment) return;
