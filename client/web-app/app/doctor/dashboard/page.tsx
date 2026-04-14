@@ -172,6 +172,9 @@ export default function DoctorDashboard() {
                 <Link href="/doctor/prescriptions" className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 text-gray-700 text-sm">
                   <span>💊</span> Prescriptions
                 </Link>
+                <Link href="/doctor/reports" className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 text-gray-700 text-sm">
+                  <span>📂</span> Patient Reports
+                </Link>
               </div>
             </div>
           </div>

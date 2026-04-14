@@ -13,8 +13,11 @@ interface Report {
   reportDate: string;
   doctorName: string;
   fileName: string;
+  fileUrl: string;
   uploadedAt: string;
 }
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 export default function ReportsPage() {
   const router = useRouter();
@@ -23,6 +26,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: '', description: '', reportType: 'other', doctorName: '', reportDate: '' });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
@@ -40,6 +44,7 @@ export default function ReportsPage() {
     try {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+      if (selectedFile) fd.append('file', selectedFile);
       const token = auth.getToken();
       const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
       const res = await fetch(`${API_BASE}/api/patients/reports`, {
@@ -52,6 +57,7 @@ export default function ReportsPage() {
       setReports(prev => [report, ...prev]);
       setShowForm(false);
       setForm({ title: '', description: '', reportType: 'other', doctorName: '', reportDate: '' });
+      setSelectedFile(null);
     } catch {
       alert('Upload failed');
     } finally {
@@ -112,6 +118,16 @@ export default function ReportsPage() {
                 <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-20" />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Attach File <span className="text-gray-400 font-normal">(PDF, image, etc.)</span></label>
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  onChange={e => setSelectedFile(e.target.files?.[0] || null)}
+                  className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-gray-300 rounded-lg px-3 py-2"
+                />
+                {selectedFile && <p className="text-xs text-green-600 mt-1">📎 {selectedFile.name}</p>}
+              </div>
               <button type="submit" disabled={uploading}
                 className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {uploading ? 'Uploading...' : 'Upload Report'}
@@ -141,6 +157,16 @@ export default function ReportsPage() {
                   <div className="text-right text-xs text-gray-400">
                     <p>{new Date(r.uploadedAt || r.reportDate || '').toLocaleDateString()}</p>
                     {r.fileName && <p className="mt-1">📎 {r.fileName}</p>}
+                    {r.fileUrl && (
+                      <a
+                        href={`${API_BASE}${r.fileUrl}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-block text-blue-600 hover:underline font-medium"
+                      >
+                        View File ↗
+                      </a>
+                    )}
                   </div>
                 </div>
               </div>

@@ -75,6 +75,15 @@ const createPrescription = async (req, res) => {
   }
 };
 
+const getPatientReportsById = async (req, res) => {
+  try {
+    const reports = await MedicalReport.find({ patientId: req.params.id }).sort({ createdAt: -1 });
+    res.json(reports);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const getPatientById = async (req, res) => {
   try {
     const patient = await Patient.findById(req.params.id);
@@ -115,5 +124,5 @@ const togglePatientStatus = async (req, res) => {
 module.exports = {
   getProfile, updateProfile, uploadReport, getReports,
   getPrescriptions, createPrescription, getPatientById,
-  getAllPatients, togglePatientStatus
+  getPatientReportsById, getAllPatients, togglePatientStatus
 };

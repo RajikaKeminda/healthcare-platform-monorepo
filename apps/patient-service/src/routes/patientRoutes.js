@@ -2,11 +2,11 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const { protect, adminOnly } = require('../middleware/auth');
+const { protect, adminOnly, doctorOrAdmin } = require('../middleware/auth');
 const {
   getProfile, updateProfile, uploadReport, getReports,
   getPrescriptions, createPrescription, getPatientById,
-  getAllPatients, togglePatientStatus
+  getPatientReportsById, getAllPatients, togglePatientStatus
 } = require('../controllers/patientController');
 
 const storage = multer.diskStorage({
@@ -15,17 +15,22 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
-// Patient routes
+// Named routes must come before /:id wildcard
 router.get('/profile', protect, getProfile);
 router.put('/profile', protect, updateProfile);
 router.post('/reports', protect, upload.single('file'), uploadReport);
 router.get('/reports', protect, getReports);
 router.get('/prescriptions', protect, getPrescriptions);
 router.post('/prescriptions', createPrescription); // called internally by doctor-service
-router.get('/:id', protect, getPatientById);
 
-// Admin routes
+// Admin routes (before /:id wildcard)
 router.get('/admin/patients', protect, adminOnly, getAllPatients);
 router.put('/admin/patients/:id/toggle-status', protect, adminOnly, togglePatientStatus);
+
+// Doctor/admin can view a specific patient's reports (e.g. from appointment context)
+router.get('/:id/reports', protect, doctorOrAdmin, getPatientReportsById);
+
+// Wildcard route last
+router.get('/:id', protect, getPatientById);
 
 module.exports = router;

@@ -52,6 +52,10 @@ app.use('/api/payments',      makeProxy(services.PAYMENT,      '/api/payments'))
 app.use('/api/notifications', makeProxy(services.NOTIFICATION, '/api/notifications'));
 app.use('/api/symptoms',      makeProxy(services.AI_SYMPTOM,   '/api/symptoms'));
 
+// Proxy uploaded files (stored in patient-service) so the browser can reach
+// http://localhost:3000/uploads/<filename> directly.
+app.use('/uploads', makeProxy(services.PATIENT, '/uploads'));
+
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',

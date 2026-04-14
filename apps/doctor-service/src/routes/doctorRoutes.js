@@ -7,20 +7,22 @@ const {
   getAllDoctors, verifyDoctor, toggleDoctorStatus
 } = require('../controllers/doctorController');
 
-// Public routes
+// Named/specific routes must come before /:id wildcard
 router.get('/search', searchDoctors);
-router.get('/:id', getDoctorById);
 
-// Doctor routes
+// Doctor authenticated routes (before /:id wildcard)
 router.get('/profile/me', protect, getProfile);
 router.put('/profile/me', protect, updateProfile);
 router.put('/availability', protect, doctorOnly, setAvailability);
 router.post('/prescriptions', protect, doctorOnly, issuePrescription);
 router.get('/prescriptions/my', protect, doctorOnly, getPrescriptions);
 
-// Admin routes
+// Admin routes (before /:id wildcard)
 router.get('/admin/all', protect, adminOnly, getAllDoctors);
 router.put('/admin/:id/verify', protect, adminOnly, verifyDoctor);
 router.put('/admin/:id/toggle-status', protect, adminOnly, toggleDoctorStatus);
+
+// Public wildcard route last
+router.get('/:id', getDoctorById);
 
 module.exports = router;
