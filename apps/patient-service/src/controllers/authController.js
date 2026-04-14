@@ -3,7 +3,7 @@ const Patient = require('../models/Patient');
 
 const generateToken = (patient) => {
   return jwt.sign(
-    { id: patient._id, email: patient.email, role: patient.role, name: patient.name },
+    { id: patient._id, email: patient.email, role: patient.role, name: patient.name, phone: patient.phone || '' },
     process.env.JWT_SECRET || 'healthcare_jwt_secret_2026',
     { expiresIn: '7d' }
   );

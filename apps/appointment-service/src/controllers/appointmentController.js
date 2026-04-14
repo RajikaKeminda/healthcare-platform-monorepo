@@ -2,15 +2,27 @@ const axios = require('axios');
 const Appointment = require('../models/Appointment');
 
 const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3006';
+const DOCTOR_SERVICE_URL = process.env.DOCTOR_SERVICE_URL || 'http://localhost:3002';
 
+// Fire-and-forget notification — never blocks the main response
 const notifyUsers = async (appointment, eventType) => {
   try {
     await axios.post(`${NOTIFICATION_SERVICE_URL}/api/notifications/appointment`, {
       appointment,
-      eventType
+      eventType,
     });
   } catch (err) {
     console.error('Notification service error:', err.message);
+  }
+};
+
+// Silently fetch doctor contact details so we can include email/phone in the appointment
+const fetchDoctorContact = async (doctorId) => {
+  try {
+    const { data } = await axios.get(`${DOCTOR_SERVICE_URL}/api/doctors/${doctorId}`);
+    return { email: data.email || '', phone: data.phone || '' };
+  } catch {
+    return { email: '', phone: '' };
   }
 };
 
@@ -19,16 +31,21 @@ const createAppointment = async (req, res) => {
     const {
       doctorId, doctorName, doctorSpecialization,
       appointmentDate, startTime, endTime, duration,
-      type, reason, consultationFee
+      type, reason, consultationFee,
     } = req.body;
+
+    const doctorContact = await fetchDoctorContact(doctorId);
 
     const appointment = await Appointment.create({
       patientId: req.user.id,
       patientName: req.user.name,
       patientEmail: req.user.email,
+      patientPhone: req.user.phone || '',
       doctorId,
       doctorName,
       doctorSpecialization,
+      doctorEmail: doctorContact.email,
+      doctorPhone: doctorContact.phone,
       appointmentDate: new Date(appointmentDate),
       startTime,
       endTime,
@@ -39,7 +56,7 @@ const createAppointment = async (req, res) => {
       meetingId: `appointment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     });
 
-    await notifyUsers(appointment, 'booking_confirmed');
+    notifyUsers(appointment, 'booking_confirmed');
     res.status(201).json(appointment);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -81,7 +98,7 @@ const getDoctorAppointments = async (req, res) => {
       const d = new Date(date);
       query.appointmentDate = {
         $gte: new Date(d.setHours(0, 0, 0, 0)),
-        $lt: new Date(d.setHours(23, 59, 59, 999))
+        $lt: new Date(d.setHours(23, 59, 59, 999)),
       };
     }
     const appointments = await Appointment.find(query)
@@ -114,9 +131,9 @@ const updateAppointmentStatus = async (req, res) => {
     }
     await appointment.save();
 
-    if (status === 'confirmed') await notifyUsers(appointment, 'appointment_confirmed');
-    if (status === 'cancelled') await notifyUsers(appointment, 'appointment_cancelled');
-    if (status === 'completed') await notifyUsers(appointment, 'consultation_completed');
+    if (status === 'confirmed')  notifyUsers(appointment, 'appointment_confirmed');
+    if (status === 'cancelled')  notifyUsers(appointment, 'appointment_cancelled');
+    if (status === 'completed')  notifyUsers(appointment, 'consultation_completed');
 
     res.json(appointment);
   } catch (error) {
@@ -138,7 +155,7 @@ const cancelAppointment = async (req, res) => {
     appointment.cancelledBy = req.user.role;
     appointment.cancellationReason = reason;
     await appointment.save();
-    await notifyUsers(appointment, 'appointment_cancelled');
+    notifyUsers(appointment, 'appointment_cancelled');
     res.json({ message: 'Appointment cancelled', appointment });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -160,10 +177,9 @@ const updatePaymentStatus = async (req, res) => {
   }
 };
 
-// Admin
 const getAllAppointments = async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, date } = req.query;
+    const { page = 1, limit = 20, status } = req.query;
     const query = {};
     if (status) query.status = status;
     const appointments = await Appointment.find(query)
@@ -180,5 +196,5 @@ const getAllAppointments = async (req, res) => {
 module.exports = {
   createAppointment, getAppointmentById, getPatientAppointments,
   getDoctorAppointments, updateAppointmentStatus, cancelAppointment,
-  updatePaymentStatus, getAllAppointments
+  updatePaymentStatus, getAllAppointments,
 };

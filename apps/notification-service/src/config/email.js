@@ -11,18 +11,18 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendEmail = async ({ to, subject, html, text }) => {
-  if (!process.env.EMAIL_USER) {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
     console.log(`[DEV] Email would be sent to ${to}: ${subject}`);
     return { messageId: 'dev_mock' };
   }
-  const mailOptions = {
-    from: process.env.EMAIL_FROM || 'Healthcare Platform <noreply@healthcare.com>',
-    to,
-    subject,
-    html,
-    text,
-  };
+
+  // Gmail requires the "from" address to exactly match the authenticated account.
+  // Using a mismatched display-only address like "noreply@healthcare.com" causes
+  // authentication failures. Always send from the real Gmail account.
+  const from = `HealthCare+ <${process.env.EMAIL_USER}>`;
+
+  const mailOptions = { from, to, subject, html, text };
   return transporter.sendMail(mailOptions);
 };
 
-module.exports = { sendEmail };
+module.exports = { sendEmail, transporter };
