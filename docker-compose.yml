@@ -179,7 +179,7 @@ services:
       - PORT=3007
       - MONGODB_URI=mongodb://mongodb:27017/symptom_db
       - JWT_SECRET=healthcare_jwt_secret_2026
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
     depends_on:
       - mongodb
     networks:
