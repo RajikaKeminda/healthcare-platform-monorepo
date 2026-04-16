@@ -57,6 +57,9 @@ export default function Navbar() {
                 <Link href="/register" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
                   Register
                 </Link>
+                <Link href="/admin/login" className="text-gray-400 hover:text-gray-600 transition-colors text-xs border border-gray-200 px-2 py-1 rounded">
+                  Admin
+                </Link>
               </div>
             )}
           </div>
@@ -74,13 +77,19 @@ export default function Navbar() {
             <Link href="/symptoms" className="block px-4 py-2 text-gray-600 hover:bg-gray-50">Symptom Checker</Link>
             {user ? (
               <>
-                <Link href={user.role === 'doctor' ? '/doctor/dashboard' : '/patient/dashboard'} className="block px-4 py-2 text-gray-600 hover:bg-gray-50">Dashboard</Link>
+                <Link
+                  href={user.role === 'admin' ? '/admin/dashboard' : user.role === 'doctor' ? '/doctor/dashboard' : '/patient/dashboard'}
+                  className="block px-4 py-2 text-gray-600 hover:bg-gray-50"
+                >
+                  Dashboard
+                </Link>
                 <button onClick={handleLogout} className="block w-full text-left px-4 py-2 text-red-600 hover:bg-gray-50">Logout</button>
               </>
             ) : (
               <>
                 <Link href="/login" className="block px-4 py-2 text-gray-600 hover:bg-gray-50">Login</Link>
                 <Link href="/register" className="block px-4 py-2 text-blue-600 hover:bg-gray-50">Register</Link>
+                <Link href="/admin/login" className="block px-4 py-2 text-gray-400 hover:bg-gray-50 text-sm">Admin Portal</Link>
               </>
             )}
           </div>

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/auth');
+const { protect, adminOnly } = require('../middleware/auth');
 const {
   createAppointment, getAppointmentById, getPatientAppointments,
   getDoctorAppointments, updateAppointmentStatus, cancelAppointment,
@@ -10,7 +10,7 @@ const {
 router.post('/', protect, createAppointment);
 router.get('/patient/my', protect, getPatientAppointments);
 router.get('/doctor/my', protect, getDoctorAppointments);
-router.get('/admin/all', protect, getAllAppointments);
+router.get('/admin/all', protect, adminOnly, getAllAppointments);
 router.get('/:id', protect, getAppointmentById);
 router.put('/:id/status', protect, updateAppointmentStatus);
 router.put('/:id/cancel', protect, cancelAppointment);

@@ -134,4 +134,29 @@ const getMyPayments = async (req, res) => {
   }
 };
 
-module.exports = { createOrder, captureOrder, getPaymentByAppointment, getMyPayments };
+const getAllPayments = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status } = req.query;
+    const query = status ? { status } : {};
+    const payments = await Payment.find(query)
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .sort({ createdAt: -1 });
+    const total = await Payment.countDocuments(query);
+    const totalAmount = await Payment.aggregate([
+      { $match: { status: 'completed' } },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+    res.json({
+      payments,
+      total,
+      page: parseInt(page),
+      pages: Math.ceil(total / limit),
+      totalRevenue: totalAmount[0]?.total || 0
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { createOrder, captureOrder, getPaymentByAppointment, getMyPayments, getAllPayments };

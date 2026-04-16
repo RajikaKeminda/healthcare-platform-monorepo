@@ -13,8 +13,23 @@ export const auth = {
     const endpoint = role === 'doctor' ? '/api/doctors/auth/login' : '/api/patients/auth/login';
     const data = await api.post(endpoint, { email, password });
     if (data.token) {
+      const userData = data.patient || data.doctor;
+      // Use the actual role from the database (handles admin accounts stored as patients)
+      const actualRole = userData?.role || role;
       localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify({ ...data.patient || data.doctor, role }));
+      localStorage.setItem('user', JSON.stringify({ ...userData, role: actualRole }));
+    }
+    return data;
+  },
+  adminLogin: async (email: string, password: string) => {
+    const data = await api.post('/api/patients/auth/login', { email, password });
+    if (data.token) {
+      const userData = data.patient;
+      if (userData?.role !== 'admin') {
+        throw new Error('Access denied. Admin account required.');
+      }
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify({ ...userData, role: 'admin' }));
     }
     return data;
   },
@@ -22,8 +37,10 @@ export const auth = {
     const endpoint = role === 'doctor' ? '/api/doctors/auth/register' : '/api/patients/auth/register';
     const data = await api.post(endpoint, userData);
     if (data.token) {
+      const user = data.patient || data.doctor;
+      const actualRole = user?.role || role;
       localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify({ ...data.patient || data.doctor, role }));
+      localStorage.setItem('user', JSON.stringify({ ...user, role: actualRole }));
     }
     return data;
   },
