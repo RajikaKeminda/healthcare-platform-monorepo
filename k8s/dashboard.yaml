@@ -1,0 +1,198 @@
+# ── Namespace ──────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubernetes-dashboard
+---
+# ── ServiceAccount ─────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+---
+# ── Admin ServiceAccount (for Minikube local access) ──────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dashboard-admin
+  namespace: kubernetes-dashboard
+---
+# ── ClusterRoleBinding — grants full read access to the dashboard SA ───────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubernetes-dashboard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-dashboard
+    namespace: kubernetes-dashboard
+---
+# ── ClusterRoleBinding — grants full access to the admin SA ───────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dashboard-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: dashboard-admin
+    namespace: kubernetes-dashboard
+---
+# ── Secret for long-lived admin token ─────────────────────────────────────────
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dashboard-admin-token
+  namespace: kubernetes-dashboard
+  annotations:
+    kubernetes.io/service-account.name: dashboard-admin
+type: kubernetes.io/service-account-token
+---
+# ── ConfigMap ──────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubernetes-dashboard-settings
+  namespace: kubernetes-dashboard
+---
+# ── Role & RoleBinding (dashboard internal) ───────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["kubernetes-dashboard-key-holder", "kubernetes-dashboard-certs", "kubernetes-dashboard-csrf"]
+    verbs: ["get", "update", "delete"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["kubernetes-dashboard-settings"]
+    verbs: ["get", "update"]
+  - apiGroups: [""]
+    resources: ["services"]
+    resourceNames: ["heapster", "dashboard-metrics-scraper"]
+    verbs: ["proxy"]
+  - apiGroups: [""]
+    resources: ["services/proxy"]
+    resourceNames: ["heapster", "http:heapster:", "https:heapster:", "dashboard-metrics-scraper", "http:dashboard-metrics-scraper"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kubernetes-dashboard
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-dashboard
+    namespace: kubernetes-dashboard
+---
+# ── Deployment ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+  labels:
+    app: kubernetes-dashboard
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: kubernetes-dashboard
+  template:
+    metadata:
+      labels:
+        app: kubernetes-dashboard
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kubernetes-dashboard
+          image: kubernetesui/dashboard:v2.7.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9090
+              protocol: TCP
+          args:
+            - --namespace=kubernetes-dashboard
+            - --insecure-bind-address=0.0.0.0
+            - --enable-insecure-login
+            - --enable-skip-login
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9090
+            initialDelaySeconds: 30
+            timeoutSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1001
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp-volume
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}
+      serviceAccountName: kubernetes-dashboard
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+---
+# ── Service ────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+  labels:
+    app: kubernetes-dashboard
+spec:
+  selector:
+    app: kubernetes-dashboard
+  ports:
+    - port: 80
+      targetPort: 9090
+  type: ClusterIP
+---
+# ── Ingress — exposes dashboard at http://dashboard.local ─────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kubernetes-dashboard-ingress
+  namespace: kubernetes-dashboard
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: dashboard.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kubernetes-dashboard
+                port:
+                  number: 80
